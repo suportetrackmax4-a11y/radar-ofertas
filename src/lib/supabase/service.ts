@@ -2,7 +2,7 @@ import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { SUPABASE_URL } from "@/lib/env";
 
-/** Chave secreta do Supabase. Só é usada no modo local sem login (npm run dev). Nunca vai para o navegador. */
+/** Chave secreta do Supabase. Só é usada pelo painel, que roda apenas no seu computador (npm run dev). Nunca vai para o navegador. */
 const SECRET_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 
 export const hasSecretKey = Boolean(SUPABASE_URL && SECRET_KEY);

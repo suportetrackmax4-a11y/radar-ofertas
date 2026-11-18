@@ -1,39 +1,28 @@
 import "server-only";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getServiceClient } from "@/lib/supabase/service";
-import { LOCAL_NO_LOGIN, isSupabaseConfigured } from "@/lib/env";
+import { PANEL_ENABLED, isSupabaseConfigured } from "@/lib/env";
 
-export type AdminContext = { supabase: SupabaseClient; email: string; localMode: boolean };
+export type AdminContext = { supabase: SupabaseClient };
 
 /**
- * Retorna o contexto do administrador, ou null se não autorizado.
- * - Modo local (npm run dev): sem login, usando a chave secreta do .env.local.
- * - Produção: confere a sessão no servidor de autenticação (getUser) e a tabela `admins`.
+ * Acesso ao painel. Não há usuário nem senha: o painel só existe no seu computador
+ * (`npm run dev`) e usa a chave secreta do .env.local. No site publicado retorna null.
  */
 export async function getAdmin(): Promise<AdminContext | null> {
   // Garante que as páginas do painel nunca sejam geradas estaticamente/cacheadas.
   await connection();
-  if (!isSupabaseConfigured) return null;
-
-  if (LOCAL_NO_LOGIN) {
-    const service = getServiceClient();
-    return service ? { supabase: service, email: "Modo local (sem senha)", localMode: true } : null;
-  }
-
-  const supabase = await createSupabaseServerClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return null;
-  const { data: row } = await supabase.from("admins").select("user_id").eq("user_id", auth.user.id).maybeSingle();
-  if (!row) return null;
-  return { supabase, email: auth.user.email ?? "", localMode: false };
+  if (!PANEL_ENABLED || !isSupabaseConfigured) return null;
+  const service = getServiceClient();
+  return service ? { supabase: service } : null;
 }
 
-/** Para páginas do painel: redireciona ao login quando não autorizado. */
+/** Para páginas do painel: 404 no site publicado; tela de configuração se faltar a chave. */
 export async function requireAdmin() {
+  if (!PANEL_ENABLED) notFound();
   const admin = await getAdmin();
-  if (!admin) redirect("/admin/login");
+  if (!admin) redirect("/admin/configurar");
   return admin;
 }

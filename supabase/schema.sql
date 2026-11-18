@@ -7,7 +7,7 @@
 create extension if not exists unaccent with schema extensions;
 
 -- ---------------------------------------------------------------------
--- Administradores (quem pode usar o painel)
+-- Administradores (fica vazia: o painel usa a chave secreta, sem login)
 -- ---------------------------------------------------------------------
 create table if not exists public.admins (
   user_id uuid primary key references auth.users (id) on delete cascade,
@@ -29,42 +29,11 @@ $$;
 revoke all on function public.is_admin() from public;
 grant execute on function public.is_admin() to anon, authenticated;
 
--- Existe algum administrador? (usado na tela de login para oferecer "criar conta")
-create or replace function public.admin_exists()
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select exists (select 1 from public.admins);
-$$;
-
-revoke all on function public.admin_exists() from public;
-grant execute on function public.admin_exists() to anon, authenticated;
-
--- Primeiro acesso: o usuário logado vira administrador SOMENTE se ainda não houver nenhum.
-create or replace function public.claim_first_admin()
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  if auth.uid() is null then
-    return false;
-  end if;
-  lock table public.admins in exclusive mode;
-  if exists (select 1 from public.admins) then
-    return exists (select 1 from public.admins where user_id = auth.uid());
-  end if;
-  insert into public.admins (user_id) values (auth.uid());
-  return true;
-end;
-$$;
-
-revoke all on function public.claim_first_admin() from public;
-grant execute on function public.claim_first_admin() to authenticated;
+-- O painel não usa login: ele roda só no seu computador com a chave secreta,
+-- que ignora estas regras. A tabela admins fica vazia, então ninguém de fora grava nada.
+-- Remove as funções antigas de "criar conta de administrador" (versões anteriores).
+drop function if exists public.claim_first_admin();
+drop function if exists public.admin_exists();
 
 drop policy if exists "admins_select_self" on public.admins;
 create policy "admins_select_self" on public.admins
@@ -301,11 +270,21 @@ create policy "product_images_admin_delete" on storage.objects
   for delete to authenticated
   using (bucket_id = 'product-images' and public.is_admin());
 
+-- ---------------------------------------------------------------------
+-- Permissões de acesso às tabelas
+-- Projetos novos do Supabase não liberam as tabelas automaticamente.
+-- O que cada um pode ver/gravar continua limitado pelas regras (RLS) acima:
+-- visitantes só leem produtos/categorias ativos; só a chave secreta grava.
+-- ---------------------------------------------------------------------
+grant usage on schema public to anon, authenticated, service_role;
+grant select on public.categories, public.products, public.site_settings to anon, authenticated;
+grant insert, update, delete on public.categories, public.products, public.site_settings to authenticated;
+grant all on public.categories, public.products, public.site_settings, public.admins to service_role;
+grant select on public.admins to authenticated;
+
 -- =====================================================================
--- PRIMEIRO ACESSO: abra /admin/login no site e use "Criar conta de administrador".
--- A primeira conta criada vira administradora; depois disso a opção some.
---
--- Alternativa manual (se preferir criar o usuário em Authentication > Users):
---   insert into public.admins (user_id)
---   select id from auth.users where email = 'SEU-EMAIL@exemplo.com';
+-- PAINEL: não há usuário nem senha. Ele abre com `npm run dev` no seu
+-- computador, usando a chave secreta (SUPABASE_SECRET_KEY) do .env.local.
+-- Recomendado: Authentication > Sign In / Providers > desative
+-- "Allow new users to sign up" (o site não usa contas de usuário).
 -- =====================================================================

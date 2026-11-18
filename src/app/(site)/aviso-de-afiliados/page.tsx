@@ -3,7 +3,7 @@ import { LegalPage } from "@/components/site/LegalPage";
 import { getSettings } from "@/lib/data";
 
 export const metadata: Metadata = { title: "Aviso de afiliados", alternates: { canonical: "/aviso-de-afiliados" } };
-export const revalidate = 3600;
+export const revalidate = 300;
 
 export default async function Page() {
   const s = await getSettings();
