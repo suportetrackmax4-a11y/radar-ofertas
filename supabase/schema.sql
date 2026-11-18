@@ -29,6 +29,43 @@ $$;
 revoke all on function public.is_admin() from public;
 grant execute on function public.is_admin() to anon, authenticated;
 
+-- Existe algum administrador? (usado na tela de login para oferecer "criar conta")
+create or replace function public.admin_exists()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from public.admins);
+$$;
+
+revoke all on function public.admin_exists() from public;
+grant execute on function public.admin_exists() to anon, authenticated;
+
+-- Primeiro acesso: o usuário logado vira administrador SOMENTE se ainda não houver nenhum.
+create or replace function public.claim_first_admin()
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null then
+    return false;
+  end if;
+  lock table public.admins in exclusive mode;
+  if exists (select 1 from public.admins) then
+    return exists (select 1 from public.admins where user_id = auth.uid());
+  end if;
+  insert into public.admins (user_id) values (auth.uid());
+  return true;
+end;
+$$;
+
+revoke all on function public.claim_first_admin() from public;
+grant execute on function public.claim_first_admin() to authenticated;
+
 drop policy if exists "admins_select_self" on public.admins;
 create policy "admins_select_self" on public.admins
   for select to authenticated
@@ -264,8 +301,10 @@ create policy "product_images_admin_delete" on storage.objects
   using (bucket_id = 'product-images' and public.is_admin());
 
 -- =====================================================================
--- DEPOIS de criar seu usuário em Authentication > Users, torne-o admin:
+-- PRIMEIRO ACESSO: abra /admin/login no site e use "Criar conta de administrador".
+-- A primeira conta criada vira administradora; depois disso a opção some.
 --
+-- Alternativa manual (se preferir criar o usuário em Authentication > Users):
 --   insert into public.admins (user_id)
 --   select id from auth.users where email = 'SEU-EMAIL@exemplo.com';
 -- =====================================================================

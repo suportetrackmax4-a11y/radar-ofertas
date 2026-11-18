@@ -31,15 +31,17 @@ src/components/            → componentes do site e do painel
 
 1. Crie uma conta e um projeto em https://supabase.com (plano gratuito serve para começar).
 2. No projeto: **SQL Editor → New query**, cole todo o conteúdo de `supabase/schema.sql` e clique em **Run**.
-3. **Authentication → Sign In / Providers**: desative **"Allow new users to sign up"** (ninguém além de você deve criar conta).
-4. **Authentication → Users → Add user → Create new user**: informe seu e-mail e uma senha forte, marque *Auto Confirm User*.
-5. Volte ao **SQL Editor** e torne esse usuário administrador:
-   ```sql
-   insert into public.admins (user_id)
-   select id from auth.users where email = 'SEU-EMAIL@exemplo.com';
-   ```
-6. **Project Settings → API Keys**: copie a *Project URL* e a chave **publishable** (ou a `anon` legada).
+3. **Project Settings → API Keys**: copie a *Project URL* e a chave **publishable** (ou a `anon` legada) para o `.env.local` (seção 2) ou para as variáveis da Vercel (seção 4).
    ⚠️ Não use a chave secreta / `service_role` — o projeto não precisa dela.
+4. **Criar seu usuário e senha:** abra `/admin/login` no site e use a aba **Criar conta**. A primeira conta criada vira administradora; depois disso, a opção de cadastro some da tela.
+   - Se o Supabase pedir confirmação de e-mail, clique no link que chegar e depois entre com seu e-mail e senha.
+   - Para pular a confirmação: **Authentication → Sign In / Providers → Email** → desative *Confirm email*.
+5. **Depois de criar sua conta**, por segurança: **Authentication → Sign In / Providers** → desative **"Allow new users to sign up"**. (Mesmo sem isso, outras contas não conseguem acessar o painel, mas assim ninguém cria contas inúteis.)
+
+> Alternativa: criar o usuário em **Authentication → Users → Add user** e rodar no SQL Editor
+> `insert into public.admins (user_id) select id from auth.users where email = 'SEU-EMAIL';`
+>
+> Já rodou uma versão antiga do `schema.sql`? Rode o arquivo de novo — ele é seguro para repetir e não apaga dados.
 
 ## 2. Rodar no seu computador
 

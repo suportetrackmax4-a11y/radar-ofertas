@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAdmin } from "@/lib/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getPublicClient } from "@/lib/supabase/public";
 import { IMAGE_BUCKET, isSupabaseConfigured } from "@/lib/env";
 import { slugify } from "@/lib/slug";
 import { categorySchema, firstErrors, parsePrice, productSchema, settingsSchema } from "@/lib/validation";
@@ -72,10 +73,69 @@ export async function login(_prev: FormState, fd: FormData): Promise<FormState> 
 
   const { data: adminRow } = await supabase.from("admins").select("user_id").eq("user_id", data.user.id).maybeSingle();
   if (!adminRow) {
-    await supabase.auth.signOut();
-    return { message: "Este usuário não tem acesso ao painel." };
+    // Primeiro acesso: se ainda não existe nenhum administrador, esta conta assume.
+    const { data: claimed } = await supabase.rpc("claim_first_admin");
+    if (claimed !== true) {
+      await supabase.auth.signOut();
+      return { message: "Este usuário não tem acesso ao painel." };
+    }
   }
   redirect("/admin");
+}
+
+/** Cria a primeira conta de administrador. Só funciona enquanto não houver nenhum admin. */
+export async function registerFirstAdmin(_prev: FormState, fd: FormData): Promise<FormState> {
+  if (!isSupabaseConfigured) return { message: "Conecte o Supabase antes de criar a conta (veja o README)." };
+  if (await adminExists()) return { message: "Já existe um administrador. Use a opção Entrar." };
+
+  const email = str(fd, "email").trim().toLowerCase();
+  const password = str(fd, "password");
+  const confirm = str(fd, "confirm");
+  const errors: Record<string, string> = {};
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = "Informe um e-mail válido.";
+  if (password.length < 8) errors.password = "A senha precisa ter pelo menos 8 caracteres.";
+  else if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) errors.password = "Use letras e números na senha.";
+  if (password !== confirm) errors.confirm = "As senhas não são iguais.";
+  if (Object.keys(errors).length) return { errors };
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("signups not allowed") || msg.includes("signup is disabled"))
+      return { message: "O cadastro está desativado no Supabase. Ative em Authentication > Sign In / Providers > Allow new users to sign up." };
+    if (msg.includes("already registered")) return { message: "Este e-mail já tem conta. Use a opção Entrar." };
+    if (msg.includes("password")) return { errors: { password: error.message } };
+    if (error.status === 429) return { message: "Muitas tentativas. Aguarde alguns minutos." };
+    console.error("[admin:signup]", error);
+    return { message: "Não foi possível criar a conta. Tente novamente." };
+  }
+
+  if (!data.session) {
+    // Confirmação de e-mail ativada no Supabase: o acesso é liberado no primeiro login.
+    return {
+      ok: true,
+      message: "Conta criada! Abra o e-mail de confirmação que o Supabase enviou, clique no link e depois entre com seu e-mail e senha.",
+    };
+  }
+
+  const { data: claimed } = await supabase.rpc("claim_first_admin");
+  if (claimed !== true) {
+    await supabase.auth.signOut();
+    return { message: "Outro administrador foi criado antes. Peça acesso a ele." };
+  }
+  redirect("/admin");
+}
+
+export async function adminExists(): Promise<boolean> {
+  const db = getPublicClient();
+  if (!db) return false;
+  const { data, error } = await db.rpc("admin_exists");
+  if (error) {
+    console.error("[admin:admin_exists]", error);
+    return true; // na dúvida, não oferece cadastro
+  }
+  return data === true;
 }
 
 export async function logout() {
