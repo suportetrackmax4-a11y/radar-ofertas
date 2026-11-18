@@ -216,7 +216,28 @@ export async function saveProduct(_prev: FormState, fd: FormData): Promise<FormS
   redirect(`/admin/produtos?salvo=${encodeURIComponent(values.name.slice(0, 60))}`);
 }
 
-const TOGGLE_FIELDS = ["is_active", "is_featured", "is_offer"] as const;
+const IMAGE_TYPES: Record<string, string> = { "image/webp": "webp", "image/jpeg": "jpg", "image/png": "png", "image/avif": "avif" };
+
+/** Envia uma imagem (já comprimida no navegador) para o Storage e devolve a URL pública. */
+export async function uploadProductImage(fd: FormData): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const admin = await getAdmin();
+  if (!admin) return { ok: false, error: NOT_ALLOWED };
+  const file = fd.get("file");
+  if (!(file instanceof File)) return { ok: false, error: "Arquivo não recebido" };
+  const ext = IMAGE_TYPES[file.type];
+  if (!ext) return { ok: false, error: "Formato não suportado (use JPG, PNG, WebP ou AVIF)" };
+  if (file.size > 5 * 1024 * 1024) return { ok: false, error: "Imagem muito grande (máx. 5 MB)" };
+  const path = `products/${new Date().getFullYear()}/${crypto.randomUUID()}.${ext}`;
+  const storage = admin.supabase.storage.from(IMAGE_BUCKET);
+  const { error } = await storage.upload(path, file, { contentType: file.type, cacheControl: "31536000", upsert: false });
+  if (error) {
+    console.error("[admin:upload]", error);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true, url: storage.getPublicUrl(path).data.publicUrl };
+}
+
+const TOGGLE_FIELDS =["is_active", "is_featured", "is_offer"] as const;
 type ToggleField = (typeof TOGGLE_FIELDS)[number];
 
 export async function toggleProduct(id: string, field: ToggleField, value: boolean): Promise<ActionResult> {

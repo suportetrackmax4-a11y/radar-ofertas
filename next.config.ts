@@ -18,6 +18,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  experimental: {
+    // Envio de imagens do painel (já comprimidas no navegador; o servidor aceita até 5 MB por imagem).
+    serverActions: { bodySizeLimit: "6mb" },
+  },
   turbopack: {
     rules: {
       "*.css": {

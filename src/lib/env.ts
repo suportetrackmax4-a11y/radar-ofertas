@@ -11,3 +11,9 @@ export const SITE_URL = (
 export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_KEY);
 
 export const IMAGE_BUCKET = "product-images";
+
+/**
+ * Modo local sem login: só existe com `npm run dev` (NODE_ENV = development).
+ * No build de produção (`npm run build` / Vercel) o login é SEMPRE obrigatório.
+ */
+export const LOCAL_NO_LOGIN = process.env.NODE_ENV === "development";

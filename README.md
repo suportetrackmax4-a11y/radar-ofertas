@@ -58,6 +58,17 @@ npm run dev
 - Site: http://localhost:3000
 - Painel: http://localhost:3000/admin
 
+### Painel sem senha (só no seu computador)
+
+Com `npm run dev`, o painel abre **direto, sem login**, desde que o `.env.local` tenha a chave secreta:
+
+```
+SUPABASE_SECRET_KEY=sb_secret_...   # Project Settings → API Keys → Secret keys
+```
+
+- Essa chave dá acesso total ao banco: **não compartilhe, não envie ao GitHub** (o `.env.local` já é ignorado) e **não cadastre na Vercel**.
+- No site publicado (`npm run build` / Vercel) esse modo **não existe**: o painel sempre pede login. Para criar seu acesso online, use a aba **Criar conta** em `/admin/login` (seção 1, passo 4).
+
 > Dica: a pasta está dentro do OneDrive. Se o `npm install` ou o `npm run dev` ficarem lentos, pause a sincronização ou mova o projeto para fora do OneDrive (ex.: `C:\projetos`).
 
 ## 3. Usar o painel

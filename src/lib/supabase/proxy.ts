@@ -1,11 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { SUPABASE_KEY, SUPABASE_URL, isSupabaseConfigured } from "@/lib/env";
+import { LOCAL_NO_LOGIN, SUPABASE_KEY, SUPABASE_URL, isSupabaseConfigured } from "@/lib/env";
 
 /** Renova a sessão do Supabase e bloqueia o painel para quem não está logado. */
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
-  if (!isSupabaseConfigured) return response;
+  if (!isSupabaseConfigured || LOCAL_NO_LOGIN) return response;
 
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_KEY, {
     cookies: {

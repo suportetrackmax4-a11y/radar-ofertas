@@ -209,7 +209,8 @@ security invoker
 set search_path = ''
 as $$
 begin
-  if not public.is_admin() then
+  -- Admin logado, ou o servidor usando a chave secreta (modo local sem login)
+  if not (public.is_admin() or coalesce(auth.jwt() ->> 'role', '') = 'service_role') then
     raise exception 'not allowed';
   end if;
   update public.products p
@@ -220,7 +221,7 @@ end;
 $$;
 
 revoke all on function public.reorder_products(uuid[]) from public;
-grant execute on function public.reorder_products(uuid[]) to authenticated;
+grant execute on function public.reorder_products(uuid[]) to authenticated, service_role;
 
 -- ---------------------------------------------------------------------
 -- Configurações do site (linha única, id = 1)

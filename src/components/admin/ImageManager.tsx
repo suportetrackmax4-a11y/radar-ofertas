@@ -2,8 +2,7 @@
 
 import { useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, ImagePlus, Link2, Loader2, Star, X } from "lucide-react";
-import { getBrowserClient } from "@/lib/supabase/client";
-import { IMAGE_BUCKET } from "@/lib/env";
+import { uploadProductImage } from "@/app/admin/actions";
 import { ProductImage } from "@/components/site/ProductImage";
 
 const MAX_IMAGES = 8;
@@ -40,21 +39,16 @@ export function ImageManager({ value, onChange }: { value: string[]; onChange: (
     const list = Array.from(files).slice(0, room);
     if (list.length < files.length) setError(`Limite de ${MAX_IMAGES} imagens por produto.`);
     setUploading(list.length);
-    const supabase = getBrowserClient();
     const uploaded: string[] = [];
     for (const file of list) {
       try {
         if (file.size > 15 * 1024 * 1024) throw new Error(`${file.name}: arquivo muito grande (máx. 15 MB)`);
         const blob = await compress(file);
-        const ext = blob.type === "image/webp" ? "webp" : (file.name.split(".").pop() ?? "jpg").toLowerCase();
-        const path = `products/${new Date().getFullYear()}/${crypto.randomUUID()}.${ext}`;
-        const { error: upErr } = await supabase.storage.from(IMAGE_BUCKET).upload(path, blob, {
-          contentType: blob.type || file.type,
-          cacheControl: "31536000",
-          upsert: false,
-        });
-        if (upErr) throw new Error(upErr.message);
-        uploaded.push(supabase.storage.from(IMAGE_BUCKET).getPublicUrl(path).data.publicUrl);
+        const fd = new FormData();
+        fd.append("file", new File([blob], file.name, { type: blob.type || file.type }));
+        const res = await uploadProductImage(fd);
+        if (!res.ok) throw new Error(res.error);
+        uploaded.push(res.url);
       } catch (e) {
         setError(e instanceof Error ? `Falha no envio: ${e.message}` : "Falha no envio da imagem");
       } finally {
